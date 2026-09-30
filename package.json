@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/mcp.mjs",
     "http": "MCP_TRANSPORT=http node src/mcp.mjs",
-    "check": "node --check src/mcp.mjs && node --check src/square.mjs && node --check src/research.mjs && node -e "JSON.parse(require('fs').readFileSync('openapi.json','utf8')); console.log('OpenAPI JSON OK')"
+    "check": "node --check src/mcp.mjs && node --check src/square.mjs && node --check src/research.mjs && node -e \"JSON.parse(require('fs').readFileSync('openapi.json','utf8')); console.log('OpenAPI JSON OK')\""
   },
   "license": "MIT"
 }
