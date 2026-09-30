@@ -1,103 +1,121 @@
-# Binance Square ChatGPT Plugin
+# Binance Square ChatGPT MCP
 
-A small, zero-dependency MCP app designed to be connected to ChatGPT as a custom plugin.
-
-The intended workflow is:
+Personal ChatGPT-connected MCP for:
 
 ```
-You: "Find what's trending on X and post the useful one on Binance Square."
-
-ChatGPT
-  -> x_get_trends
-  -> x_search_posts
-  -> writes the post
-  -> binance_square_publish_text
+public X discovery
+      ↓
+ChatGPT decides what is useful
+      ↓
+Binance Square post
 ```
 
-No manual MCP commands are required after the app is connected.
+Only Binance Square requires a secret:
+
+```
+BINANCE_SQUARE_OPENAPI_KEY=
+```
+
+There is **no X API token** in this project.
 
 ## Tools
 
-### X
-- `x_get_trends` - current X trends by WOEID. Worldwide is WOEID `1`.
-- `x_search_posts` - recent public X posts for understanding a trend.
-
-### Binance Square
+- `x_get_trends` - discovers current trend-like topics from public X search data.
+- `x_search_posts` - reads public X search results for a topic.
 - `binance_square_publish_text`
 - `binance_square_publish_images`
 - `binance_square_publish_video`
 - `binance_square_auth_status`
 
-The X trend endpoint is X API v2's Trends by WOEID endpoint. It requires an X developer App bearer token. X documents the endpoint as real-time, location-specific trend data. citeturn3view0
+The public X reader uses the public `x.pcstyle.dev` agent-oriented interface. It is a third-party public-data service, not an official X API, so availability can change. urlx.pcstyle.devhttps://x.pcstyle.dev/
 
-## Environment
+## Docker
 
-Set these in the machine/container running the MCP server:
-
-```
-BINANCE_SQUARE_OPENAPI_KEY=
-X_BEARER_TOKEN=
-PORT=8787
-HOST=0.0.0.0
-```
-
-Never send either secret as an MCP tool argument and never commit them.
-
-## Run locally
-
-### Stdio
+Build:
 
 ```bash
-npm start
+docker build -t binance-square-mcp .
 ```
 
-### Remote HTTP MCP
+Run:
 
 ```bash
-npm run http
+docker run --rm -p 8787:8787 \
+  -e BINANCE_SQUARE_OPENAPI_KEY='YOUR_KEY' \
+  binance-square-mcp
 ```
 
-The MCP endpoint is:
+Or:
+
+```bash
+BINANCE_SQUARE_OPENAPI_KEY='YOUR_KEY' docker compose up -d --build
+```
+
+## Endpoints
+
+```
+GET  /health
+GET  /ping
+POST /mcp
+```
+
+`/ping` returns a tiny JSON response suitable for uptime checks.
+
+## GitHub Actions
+
+Every push to `main`:
+
+1. Runs the Node syntax CI.
+2. Builds a Docker image.
+3. Publishes the image to GitHub Container Registry.
+4. Deploys the small static landing page in `docs/` to GitHub Pages.
+
+### Important GitHub Pages limitation
+
+GitHub Pages is static hosting. It **does not run Docker containers or a persistent Node MCP server**. citeturn0search0
+
+Therefore:
+
+```
+GitHub Pages
+└── landing page / documentation
+
+GHCR
+└── Docker image
+
+Actual MCP host
+└── runs the Docker container
+    ├── /ping
+    ├── /health
+    └── /mcp
+```
+
+The Docker image is automatically published to:
+
+```
+ghcr.io/Patel5600/binance-square-mcp:latest
+```
+
+You still need a machine/container host to actually keep that image running. GitHub Pages cannot be that runtime.
+
+## ChatGPT connection
+
+Once the container is running on a reachable HTTPS host, connect:
 
 ```
 https://YOUR-HOST/mcp
 ```
 
-Health check:
+Then the intended conversation is simply:
 
-```
-https://YOUR-HOST/health
-```
+> Find what's trending on X and post a useful update on Binance Square.
 
-For ChatGPT, the server needs to be reachable through HTTPS, or through the supported Secure MCP Tunnel. OpenAI's current plugin documentation describes connecting a custom MCP server by its `/mcp` endpoint.
+ChatGPT can call the discovery tools and then the Binance publishing tool without you manually invoking MCP commands.
 
-## Connect to ChatGPT
+## Security
 
-1. Deploy or tunnel this repository so the HTTP server is reachable.
-2. Copy the HTTPS `/mcp` URL.
-3. In ChatGPT, open the custom plugin/app connection flow.
-4. Add the MCP URL.
-5. Enable the plugin in the chat where you want to use it.
-6. Test with:
+The Binance key is resolved only from the server environment or the standard local Binance key file.
 
-```
-Find what's trending on X and post a concise useful Binance Square update.
-```
+It is never exposed as an LLM-facing tool argument and is never printed.
 
-ChatGPT can then choose `x_get_trends`, inspect recent posts with `x_search_posts`, draft the content, and call the Square publishing tool.
-
-## Important
-
-This server deliberately does not invent X trends or scrape random third-party trend sites. It uses X's official API when `X_BEARER_TOKEN` is configured.
-
-Binance publishing follows the Binance Square OpenAPI workflow.
-
-The current implementation keeps the original stdio mode so the same project can also be used by local MCP clients.
-
-## Development
-
-```bash
-npm run check
-```
-
-The repository CI runs the same syntax check on pushes and pull requests.
+Do not commit the real key.
