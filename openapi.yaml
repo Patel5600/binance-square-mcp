@@ -1,0 +1,60 @@
+openapi: 3.1.0
+info:
+  title: Binance Square Mobile Publisher
+  version: 1.0.0
+  description: Publish text posts to Binance Square from a mobile-capable OpenAI Action. The Binance credential stays server-side.
+servers:
+  - url: https://binance-square-mcp.onrender.com
+paths:
+  /api/publish:
+    post:
+      operationId: publishBinanceSquarePost
+      summary: Publish a text post to Binance Square
+      description: Publishes the supplied text exactly as received. This creates an external post.
+      security:
+        - MobilePublishKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              additionalProperties: false
+              properties:
+                text:
+                  type: string
+                  minLength: 1
+                  description: Exact text to publish to Binance Square.
+                title:
+                  type: string
+                  description: Optional Binance Square article title.
+      responses:
+        '200':
+          description: Post published
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, published]
+                properties:
+                  ok:
+                    type: boolean
+                  published:
+                    type: boolean
+                  data:
+                    type: object
+                    additionalProperties: true
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '502':
+          description: Binance publishing failure
+components:
+  securitySchemes:
+    MobilePublishKey:
+      type: http
+      scheme: bearer
+      bearerFormat: secret
