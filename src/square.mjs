@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const V1 = 'https://www.binance.com/bapi/composite/v1/public/pgc/openApi';
 const V2 = 'https://www.binance.com/bapi/composite/v2/public/pgc/openApi';
@@ -51,6 +52,16 @@ async function pollMedia(key, ticket) {
   throw new Error('Media processing timed out.');
 }
 
+function extractCover(video) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'square-video-'));
+  const cover = path.join(dir, path.parse(video).name + '-cover.png');
+  const result = spawnSync('ffmpeg', ['-y','-loglevel','error','-i',video,'-frames:v','1','-q:v','2',cover], {encoding:'utf8'});
+  if (result.error) throw new Error('ffmpeg unavailable: ' + result.error.message);
+  if (result.status !== 0) throw new Error('ffmpeg cover extraction failed: ' + (result.stderr || 'unknown error'));
+  if (!fs.existsSync(cover) || fs.statSync(cover).size === 0) throw new Error('ffmpeg produced an empty cover image.');
+  return {dir, cover};
+}
+
 async function uploadImage(key, file) {
   if (!fs.existsSync(file)) throw new Error('Image not found: ' + file);
   const ticket = await request('/image/presignedUrl', key, {imageName:path.basename(file)});
@@ -79,5 +90,18 @@ export async function publishVideo({video,duration,text}) {
   if(!video) throw new Error('video is required.');
   if(!Number.isFinite(Number(duration))||Number(duration)<=0) throw new Error('duration must be a positive number of seconds.');
   if(!fs.existsSync(video)) throw new Error('Video not found: ' + video);
-  throw new Error('Video publishing is fail-closed until ffmpeg cover extraction and video upload polling are implemented.');
+  const key=resolveKey();
+  const stat=fs.statSync(video);
+  const ticket=await request('/video/preSign',key,{fileName:path.basename(video),size:stat.size});
+  await putFile(ticket.presignedUrl,video,mimeFor(video));
+  await pollMedia(key,ticket.fileTicket);
+  const temp=extractCover(video);
+  try {
+    const cover=await uploadImage(key,temp.cover);
+    const body={contentType:3,fileTicket:ticket.fileTicket,cover,videoTimeSeconds:Number(duration),isPublish:true};
+    if(text) body.bodyTextOnly=text;
+    return request('/content/add',key,body,V1);
+  } finally {
+    try { fs.rmSync(temp.dir,{recursive:true,force:true}); } catch {}
+  }
 }
