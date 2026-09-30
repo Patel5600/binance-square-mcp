@@ -53,7 +53,7 @@ npm start
 
 ### Remote HTTP MCP
 
-```npm
+```bash
 npm run http
 ```
 
@@ -69,7 +69,7 @@ Health check:
 https://YOUR-HOST/health
 ```
 
-For ChatGPT, the server needs to be reachable through HTTPS, or through the supported Secure MCP Tunnel. OpenAI's current plugin documentation describes connecting a custom MCP server by its `/mcp` endpoint. citeturn0search5
+For ChatGPT, the server needs to be reachable through HTTPS, or through the supported Secure MCP Tunnel. OpenAI's current plugin documentation describes connecting a custom MCP server by its `/mcp` endpoint.
 
 ## Connect to ChatGPT
 
