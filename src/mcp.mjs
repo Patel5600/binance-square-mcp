@@ -7,7 +7,7 @@ const SERVER={name:'binance-square-mcp',version:'0.2.0'};
 const PROTOCOL='2025-06-18';
 
 const tools=[
-{name:'x_get_trends',description:'Fetch current X trends. Use this first when the user asks to post what is trending on X. Default WOEID 1 is worldwide.',inputSchema:{type:'object',properties:{woeid:{type:'integer',description:'X WOEID. 1 is worldwide.'},maxTrends:{type:'integer',minimum:1,maximum:50}},additionalProperties:false}},
+{name:'x_get_trends',description:'Discover current public X trend-like topics from public X search. Use this first when the user asks to post what is trending on X. No X API key is required.',inputSchema:{type:'object',properties:{woeid:{type:'integer',description:'X WOEID. 1 is worldwide.'},maxTrends:{type:'integer',minimum:1,maximum:50}},additionalProperties:false}},
 {name:'x_search_posts',description:'Fetch recent public X posts matching a trend or topic. Use this to understand what a trend is about before writing a factual Binance Square post.',inputSchema:{type:'object',properties:{query:{type:'string'},maxResults:{type:'integer',minimum:10,maximum:100}},required:['query'],additionalProperties:false}},
 {name:'binance_square_publish_text',description:'Publish a new text post or article to Binance Square. Supplied text is not rewritten.',inputSchema:{type:'object',properties:{text:{type:'string'},title:{type:'string'}},required:['text'],additionalProperties:false}},
 {name:'binance_square_publish_images',description:'Publish an image post with 1-4 images, or an article with exactly one cover image.',inputSchema:{type:'object',properties:{text:{type:'string'},images:{type:'array',items:{type:'string'},minItems:1,maxItems:4},title:{type:'string'},cover:{type:'string'}},required:['text'],additionalProperties:false}},
@@ -60,9 +60,9 @@ function runHttp(){
   const port=Number(process.env.PORT||8787);
   const host=process.env.HOST||'0.0.0.0';
   const server=http.createServer(async(req,res)=>{
-    if(req.method==='GET' && req.url==='/health'){
+    if(req.method==='GET' && (req.url==='/health' || req.url==='/ping')){
       res.writeHead(200,{'content-type':'application/json'});
-      res.end(JSON.stringify({ok:true,server:SERVER}));
+      res.end(JSON.stringify({ok:true,pong:req.url==='/ping',server:SERVER}));
       return;
     }
     if(req.method!=='POST' || new URL(req.url,'http://localhost').pathname!=='/mcp'){
