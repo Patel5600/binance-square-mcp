@@ -1,121 +1,98 @@
-# Binance Square ChatGPT MCP
+# Binance Square ChatGPT MCP / Qube
 
-Personal ChatGPT-connected MCP for:
+Zero-dependency Node 20 service for Qube with three layers:
 
 ```
-public X discovery
-      ↓
-ChatGPT decides what is useful
-      ↓
-Binance Square post
+Web / X / Web3 research
+        ↓
+Qube analysis + quality loop
+        ↓
+Binance Square publishing
 ```
 
-Only Binance Square requires a secret:
+The Binance credential stays server-side:
 
 ```
 BINANCE_SQUARE_OPENAPI_KEY=
 ```
 
-There is **no X API token** in this project.
+The mobile Action uses a separate bearer secret:
 
-## Tools
+```
+MOBILE_POST_TOKEN=
+```
 
-- `x_get_trends` - discovers current trend-like topics from public X search data.
-- `x_search_posts` - reads public X search results for a topic.
+There is no X API token in this project. Public X discovery uses the configured third-party public-data service.
+
+## Mobile Action API
+
+Existing endpoint, retained for backwards compatibility:
+
+```
+POST /api/publish
+```
+
+New media publishing:
+
+```
+POST /api/publish/images
+POST /api/publish/video
+```
+
+Image publishing accepts HTTPS media URLs. Use `images` for 1–4 image posts, or `title` + `cover` for an image-cover article.
+
+Video publishing accepts an HTTPS video URL and optional duration. The server can derive duration with ffprobe and creates a cover frame with ffmpeg.
+
+X discovery:
+
+```
+GET /api/x/search?query=...
+GET /api/x/trends?maxTrends=20
+```
+
+Specialized research:
+
+```
+GET /api/research/market?symbol=BTCUSDT&interval=1h&limit=24
+GET /api/research/token?id=bitcoin
+GET /api/research/defi?protocol=aave
+```
+
+All `/api/*` endpoints require the `MOBILE_POST_TOKEN` bearer token.
+
+## MCP tools
+
+The same capabilities are exposed through `/mcp`:
+
 - `binance_square_publish_text`
 - `binance_square_publish_images`
 - `binance_square_publish_video`
-- `binance_square_auth_status`
+- `x_get_trends`
+- `x_search_posts`
+- `research_market`
+- `research_token`
+- `research_defi`
 
-The public X reader uses the public `x.pcstyle.dev` agent-oriented interface. It is a third-party public-data service, not an official X API, so availability can change. urlx.pcstyle.devhttps://x.pcstyle.dev/
+## Health
+
+```
+GET /ping
+GET /health
+POST /mcp
+```
 
 ## Docker
 
-Build:
+The image installs ffmpeg/ffprobe so video publishing can create a cover and derive duration.
 
 ```bash
 docker build -t binance-square-mcp .
 ```
 
-Run:
-
-```bash
-docker run --rm -p 8787:8787 \
-  -e BINANCE_SQUARE_OPENAPI_KEY='YOUR_KEY' \
-  binance-square-mcp
-```
-
-Or:
-
-```bash
-BINANCE_SQUARE_OPENAPI_KEY='YOUR_KEY' docker compose up -d --build
-```
-
-## Endpoints
-
-```
-GET  /health
-GET  /ping
-POST /mcp
-```
-
-`/ping` returns a tiny JSON response suitable for uptime checks.
-
-## GitHub Actions
-
-Every push to `main`:
-
-1. Runs the Node syntax CI.
-2. Builds a Docker image.
-3. Publishes the image to GitHub Container Registry.
-4. Deploys the small static landing page in `docs/` to GitHub Pages.
-
-### Important GitHub Pages limitation
-
-GitHub Pages is static hosting. It **does not run Docker containers or a persistent Node MCP server**. citeturn0search0
-
-Therefore:
-
-```
-GitHub Pages
-└── landing page / documentation
-
-GHCR
-└── Docker image
-
-Actual MCP host
-└── runs the Docker container
-    ├── /ping
-    ├── /health
-    └── /mcp
-```
-
-The Docker image is automatically published to:
-
-```
-ghcr.io/Patel5600/binance-square-mcp:latest
-```
-
-You still need a machine/container host to actually keep that image running. GitHub Pages cannot be that runtime.
-
-## ChatGPT connection
-
-Once the container is running on a reachable HTTPS host, connect:
-
-```
-https://YOUR-HOST/mcp
-```
-
-Then the intended conversation is simply:
-
-> Find what's trending on X and post a useful update on Binance Square.
-
-ChatGPT can call the discovery tools and then the Binance publishing tool without you manually invoking MCP commands.
-
 ## Security
 
-The Binance key is resolved only from the server environment or the standard local Binance key file.
-
-It is never exposed as an LLM-facing tool argument and is never printed.
-
-Do not commit the real key.
+- Binance API key is never an LLM-facing argument and is never printed.
+- Mobile endpoints require a bearer token.
+- Remote media URLs must use HTTPS and resolve to public addresses.
+- Image/video downloads are size-limited before publishing.
+- Public X access uses no X API credential.
