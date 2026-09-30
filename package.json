@@ -1,15 +1,13 @@
 {
   "name": "binance-square-mcp",
-  "version": "0.2.0",
-  "description": "ChatGPT-ready MCP app for X trends and Binance Square publishing",
+  "version": "0.6.0",
+  "description": "ChatGPT-ready MCP and mobile Action bridge for public X discovery, crypto research, and Binance Square publishing",
   "type": "module",
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": {"node": ">=20"},
   "scripts": {
     "start": "node src/mcp.mjs",
     "http": "MCP_TRANSPORT=http node src/mcp.mjs",
-    "check": "node --check src/mcp.mjs && node --check src/square.mjs"
+    "check": "node --check src/mcp.mjs && node --check src/square.mjs && node --check src/research.mjs && node -e "JSON.parse(require('fs').readFileSync('openapi.json','utf8')); console.log('OpenAPI JSON OK')"
   },
   "license": "MIT"
 }
