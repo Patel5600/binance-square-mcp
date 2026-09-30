@@ -1,0 +1,9 @@
+{
+  "name": "binance-square-mcp",
+  "version": "0.1.0",
+  "description": "Zero-dependency MCP server for Binance Square publishing",
+  "type": "module",
+  "engines": {"node": ">=20"},
+  "scripts": {"start": "node src/mcp.mjs", "check": "node --check src/mcp.mjs && node --check src/square.mjs"},
+  "license": "MIT"
+}
