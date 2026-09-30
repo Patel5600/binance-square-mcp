@@ -10,8 +10,9 @@ Zero-dependency MCP server for publishing new content to Binance Square through 
 - Articles with one cover image
 - Secure auth status with masked key
 - MCP stdio transport
+- Video publishing with ffmpeg cover extraction and Binance processing polling
 
-Video is currently fail-closed until ffmpeg cover extraction is added. No fake success.
+Video requires ffmpeg to be installed on the machine running the MCP server.
 
 ## Requirements
 
