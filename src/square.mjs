@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 
 const V1 = 'https://www.binance.com/bapi/composite/v1/public/pgc/openApi';
 const V2 = 'https://www.binance.com/bapi/composite/v2/public/pgc/openApi';
-const X_API = 'https://api.x.com';
+const X_PUBLIC_API = 'https://x.pcstyle.dev/api/v1';
 const POLL_MS = 3000;
 const POLL_RETRIES = 10;
 
@@ -81,22 +81,39 @@ export async function publishVideo({video,duration,text}){
   try{const cover=await uploadImage(key,temp.cover);const body={contentType:3,fileTicket:ticket.fileTicket,cover,videoTimeSeconds:Number(duration),isPublish:true};if(text)body.bodyTextOnly=text;return request('/content/add',key,body,V1);}
   finally{try{fs.rmSync(temp.dir,{recursive:true,force:true})}catch{}}
 }
-function xToken(){const token=process.env.X_BEARER_TOKEN?.trim();if(!token)throw new Error('Missing X_BEARER_TOKEN. Configure an X API bearer token in the MCP host environment.');return token;}
-async function xGet(endpoint,params={}){
-  const url=new URL(X_API+endpoint);for(const[k,v]of Object.entries(params))if(v!==undefined&&v!==null&&v!=='')url.searchParams.set(k,String(v));
-  const response=await fetch(url,{headers:{Authorization:'Bearer '+xToken()}});
-  const raw=await response.text();let json;try{json=JSON.parse(raw)}catch{throw new Error('X returned non-JSON HTTP '+response.status+'.');}
-  if(!response.ok)throw new Error('X API error HTTP '+response.status+': '+(json.detail||json.title||raw.slice(0,200)));
+async function xPublicGet(endpoint,params={}) {
+  const url=new URL(X_PUBLIC_API+endpoint);
+  for(const [k,v] of Object.entries(params)) if(v!==undefined&&v!==null&&v!=='') url.searchParams.set(k,String(v));
+  const response=await fetch(url,{headers:{accept:'application/json'}});
+  const raw=await response.text();
+  let json; try{json=JSON.parse(raw)}catch{throw new Error('Public X search returned non-JSON HTTP '+response.status+'.');}
+  if(!response.ok) throw new Error('Public X search error HTTP '+response.status+': '+(json.detail||json.message||raw.slice(0,200)));
   return json;
 }
-export async function getXTrends({woeid=1,maxTrends=20}={}){
-  const n=Math.min(50,Math.max(1,Number(maxTrends)||20));
-  const data=await xGet('/2/trends/by/woeid/'+encodeURIComponent(Number(woeid)||1),{max_trends:n});
-  return{locationWoeid:Number(woeid)||1,trends:(data.data??[]).map((t,i)=>({rank:i+1,name:t.trend_name??t.name??'',tweetCount:t.tweet_count??null,domainContext:t.domain_context??null}))};
+
+export async function getXTrends({maxTrends=20}={}) {
+  const n=Math.min(20,Math.max(1,Number(maxTrends)||20));
+  const data=await xPublicGet('/search',{q:'trending OR #trending',feed:'top',limit:n,format:'json'});
+  const posts=data.posts??data.data?.posts??[];
+  const counts=new Map();
+  for(const p of posts){
+    const text=p.text??p.content??'';
+    for(const token of text.match(/#[\\p{L}\\p{N}_]+/gu)??[]) counts.set(token,(counts.get(token)||0)+1);
+  }
+  const trends=[...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,n).map(([name,count],i)=>({rank:i+1,name,tweetCount:count}));
+  return {source:'public-x-search',trends};
 }
-export async function searchXPosts({query,maxResults=10}={}){
-  if(!query?.trim())throw new Error('query must not be empty.');
-  const n=Math.min(100,Math.max(10,Number(maxResults)||10));
-  const data=await xGet('/2/tweets/search/recent',{query:query.trim(),max_results:n,'tweet.fields':'created_at,public_metrics,lang,author_id'});
-  return{query:query.trim(),posts:(data.data??[]).map(p=>({id:p.id,text:p.text,createdAt:p.created_at,lang:p.lang,authorId:p.author_id,metrics:p.public_metrics??{}}))};
+
+export async function searchXPosts({query,maxResults=10}={}) {
+  if(!query?.trim()) throw new Error('query must not be empty.');
+  const n=Math.min(20,Math.max(1,Number(maxResults)||10));
+  const data=await xPublicGet('/search',{q:query.trim(),feed:'latest',limit:n,format:'json'});
+  const posts=data.posts??data.data?.posts??[];
+  return {query:query.trim(),posts:posts.map(p=>({
+    id:p.id??null,
+    text:p.text??p.content??'',
+    createdAt:p.created_at??p.createdAt??null,
+    authorId:p.author?.username??p.username??null,
+    metrics:p.metrics??p.public_metrics??{}
+  }))};
 }
