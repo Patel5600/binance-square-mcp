@@ -3,7 +3,7 @@ import http from 'node:http';
 import readline from 'node:readline';
 import {publishText,publishImages,publishVideo} from './square.mjs';
 
-const SERVER={name:'binance-square-mcp',version:'0.3.0'};
+const SERVER={name:'binance-square-mcp',version:'0.4.0'};
 const PROTOCOL='2025-06-18';
 
 const tools=[
@@ -37,14 +37,49 @@ async function dispatch(message){
   return null;
 }
 
-async function runStdio(){
-  const rl=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
-  for await(const line of rl){
-    if(!line.trim()) continue;
-    let message;
-    try{message=JSON.parse(line)}catch{continue}
-    const result=await dispatch(message);
-    if(result) process.stdout.write(JSON.stringify(result)+'\n');
+async function readJson(req){
+  const chunks=[];
+  for await(const chunk of req) chunks.push(chunk);
+  const raw=Buffer.concat(chunks).toString('utf8');
+  return JSON.parse(raw);
+}
+
+function send(res,status,body,extra={}){
+  res.writeHead(status,{'content-type':'application/json','Cache-Control':'no-store','Access-Control-Allow-Origin':'*',...extra});
+  res.end(JSON.stringify(body));
+}
+
+function authorized(req){
+  const expected=process.env.MOBILE_POST_TOKEN?.trim();
+  if(!expected) return false;
+  const auth=req.headers.authorization||'';
+  const supplied=auth.startsWith('Bearer ')?auth.slice(7).trim():'';
+  return supplied.length===expected.length && supplied===expected;
+}
+
+async function runMobilePublish(req,res){
+  if(!authorized(req)){
+    send(res,401,{ok:false,error:'Unauthorized'});
+    return;
+  }
+  let body;
+  try{body=await readJson(req);}catch{
+    send(res,400,{ok:false,error:'Invalid JSON'});
+    return;
+  }
+  if(typeof body?.text!=='string'||!body.text.trim()){
+    send(res,400,{ok:false,error:'text must be a non-empty string'});
+    return;
+  }
+  if(body.text.length>100000){
+    send(res,413,{ok:false,error:'text is too large'});
+    return;
+  }
+  try{
+    const data=await publishText({text:body.text,title:typeof body.title==='string'&&body.title.trim()?body.title.trim():undefined});
+    send(res,200,{ok:true,published:true,data});
+  }catch(e){
+    send(res,502,{ok:false,error:e instanceof Error?e.message:String(e)});
   }
 }
 
@@ -53,61 +88,40 @@ function runHttp(){
   const host=process.env.HOST||'0.0.0.0';
   const server=http.createServer(async(req,res)=>{
     if(req.method==='OPTIONS'){
-      res.writeHead(204,{
-        'Access-Control-Allow-Origin':'*',
-        'Access-Control-Allow-Methods':'GET,POST,OPTIONS',
-        'Access-Control-Allow-Headers':'content-type,mcp-session-id',
-        'Access-Control-Max-Age':'86400'
-      });
+      res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'content-type,authorization,mcp-session-id','Access-Control-Max-Age':'86400'});
       res.end();
       return;
     }
 
-    if(req.method==='GET' && (req.url==='/health' || req.url==='/ping')){
-      res.writeHead(200,{
-        'content-type':'application/json',
-        'Access-Control-Allow-Origin':'*',
-        'Cache-Control':'no-store'
-      });
-      res.end(JSON.stringify({ok:true,pong:req.url==='/ping',server:SERVER}));
+    const pathname=new URL(req.url,'http://localhost').pathname;
+
+    if(req.method==='GET' && (pathname==='/health'||pathname==='/ping')){
+      send(res,200,{ok:true,pong:pathname==='/ping',server:SERVER});
       return;
     }
 
-    if(req.method!=='POST' || new URL(req.url,'http://localhost').pathname!=='/mcp'){
-      res.writeHead(404,{
-        'content-type':'application/json',
-        'Access-Control-Allow-Origin':'*'
-      });
-      res.end(JSON.stringify({error:'Not found'}));
+    if(req.method==='POST' && pathname==='/api/publish'){
+      await runMobilePublish(req,res);
       return;
     }
 
-    const chunks=[];
-    for await(const chunk of req) chunks.push(chunk);
+    if(req.method!=='POST' || pathname!=='/mcp'){
+      send(res,404,{error:'Not found'});
+      return;
+    }
 
     let message;
-    try{
-      message=JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    }catch{
-      res.writeHead(400,{
-        'content-type':'application/json',
-        'Access-Control-Allow-Origin':'*'
-      });
-      res.end(JSON.stringify(error(null,-32700,'Parse error')));
+    try{message=await readJson(req);}catch{
+      send(res,400,error(null,-32700,'Parse error'));
       return;
     }
 
     const result=await dispatch(message);
     res.setHeader('Access-Control-Allow-Origin','*');
-    res.setHeader('Access-Control-Allow-Headers','content-type,mcp-session-id');
+    res.setHeader('Access-Control-Allow-Headers','content-type,authorization,mcp-session-id');
     res.setHeader('Access-Control-Expose-Headers','mcp-session-id');
 
-    if(!result){
-      res.writeHead(202);
-      res.end();
-      return;
-    }
-
+    if(!result){res.writeHead(202);res.end();return;}
     res.writeHead(200,{'content-type':'application/json'});
     res.end(JSON.stringify(result));
   });
