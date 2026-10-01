@@ -8,11 +8,43 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: render-keepalive
+  cancel-in-progress: true
+
 jobs:
   ping:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
     steps:
-      - name: Ping Render MCP
+      - name: Wake and verify Render MCP
+        shell: bash
         run: |
-          set -e
-          curl --fail --silent --show-error --max-time 20             https://binance-square-mcp.onrender.com/ping
+          set -u
+
+          URL="https://binance-square-mcp.onrender.com/ping"
+
+          for attempt in 1 2 3 4 5 6; do
+            echo "Keepalive attempt $attempt/6"
+
+            response="$(curl --fail --silent --show-error \
+              --location \
+              --connect-timeout 10 \
+              --max-time 20 \
+              "$URL" 2>&1)" || true
+
+            echo "Response: $response"
+
+            if echo "$response" | grep -q '"pong":true'; then
+              echo "Render MCP is healthy."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 6 ]; then
+              sleep 5
+            fi
+          done
+
+          echo "Render MCP did not return the expected pong response after 6 attempts."
+          exit 1
