@@ -6,18 +6,19 @@ import {
   publishImages,
   publishVideo,
   publishImagesFromUrls,
+  publishImagesFromFileRefs,
   publishVideoFromUrl,
   getXTrends,
   searchXPosts
 } from './square.mjs';
 import {researchMarket,researchToken,researchDefi} from './research.mjs';
 
-const SERVER={name:'binance-square-mcp',version:'0.6.0'};
+const SERVER={name:'binance-square-mcp',version:'0.7.0'};
 const PROTOCOL='2025-06-18';
 
 const tools=[
 {name:'binance_square_publish_text',description:'Publish a new text post to Binance Square using the server-side Binance Square OpenAPI key. This changes external state; the host should request user confirmation before publishing.',inputSchema:{type:'object',properties:{text:{type:'string',minLength:1},title:{type:'string'}},required:['text'],additionalProperties:false}},
-{name:'binance_square_publish_images',description:'Publish a Binance Square image post or image-cover article using 1 to 4 local image files and the server-side Binance Square OpenAPI key. This changes external state.',inputSchema:{type:'object',properties:{text:{type:'string',minLength:1},images:{type:'array',items:{type:'string'},minItems:1,maxItems:4},title:{type:'string'},cover:{type:'string'}},required:['text'],additionalProperties:false}},
+{name:'binance_square_publish_images',description:'Publish a Binance Square image post using 1 to 4 images. Prefer openaiFileIdRefs when the conversation contains generated or uploaded image files; ChatGPT supplies temporary download links at runtime. This changes external state.',inputSchema:{type:'object',properties:{text:{type:'string',minLength:1},images:{type:'array',items:{type:'string'},minItems:1,maxItems:4},openaiFileIdRefs:{type:'array',items:{type:'string'},minItems:1,maxItems:4},title:{type:'string'},cover:{type:'string'}},required:['text'],additionalProperties:false}},
 {name:'binance_square_publish_video',description:'Publish a Binance Square video using a local video file and duration in seconds. This changes external state.',inputSchema:{type:'object',properties:{video:{type:'string'},duration:{type:'number',exclusiveMinimum:0},text:{type:'string'}},required:['video','duration'],additionalProperties:false}},
 {name:'x_get_trends',description:'Discover current trend-like hashtags from public X search data. This uses a third-party public-data service and requires no X API token.',inputSchema:{type:'object',properties:{maxTrends:{type:'integer',minimum:1,maximum:20,default:20}},additionalProperties:false}},
 {name:'x_search_posts',description:'Search public X posts through the configured third-party public-data service. No X API token is required.',inputSchema:{type:'object',properties:{query:{type:'string',minLength:1},maxResults:{type:'integer',minimum:1,maximum:20,default:10}},required:['query'],additionalProperties:false}},
@@ -28,7 +29,7 @@ const tools=[
 
 async function callTool(name,args){
   if(name==='binance_square_publish_text')return publishText(args);
-  if(name==='binance_square_publish_images')return publishImages(args);
+  if(name==='binance_square_publish_images')return args.openaiFileIdRefs?.length?publishImagesFromFileRefs(args):publishImages(args);
   if(name==='binance_square_publish_video')return publishVideo(args);
   if(name==='x_get_trends')return getXTrends(args);
   if(name==='x_search_posts')return searchXPosts(args);
@@ -89,12 +90,15 @@ async function runMobileImages(req,res){
   if(typeof body?.text!=='string'||!body.text.trim()){send(res,400,{ok:false,error:'text must be a non-empty string'});return;}
   if(body.text.length>100000){send(res,413,{ok:false,error:'text is too large'});return;}
   try{
-    const data=await publishImagesFromUrls({
-      text:body.text,
-      images:Array.isArray(body.images)?body.images:[],
-      title:typeof body.title==='string'&&body.title.trim()?body.title.trim():undefined,
-      cover:typeof body.cover==='string'&&body.cover.trim()?body.cover.trim():undefined
-    });
+    const refs=Array.isArray(body.openaiFileIdRefs)?body.openaiFileIdRefs:[];
+    const data=refs.length
+      ?await publishImagesFromFileRefs({text:body.text,openaiFileIdRefs:refs,title:typeof body.title==='string'&&body.title.trim()?body.title.trim():undefined})
+      :await publishImagesFromUrls({
+        text:body.text,
+        images:Array.isArray(body.images)?body.images:[],
+        title:typeof body.title==='string'&&body.title.trim()?body.title.trim():undefined,
+        cover:typeof body.cover==='string'&&body.cover.trim()?body.cover.trim():undefined
+      });
     send(res,200,{ok:true,published:true,data});
   }catch(e){send(res,502,{ok:false,error:e instanceof Error?e.message:String(e)});}
 }
