@@ -182,23 +182,6 @@ async function downloadRemoteFile(url,maxBytes,kind){
   }
   throw new Error('Too many media redirects.');
 }
-async function downloadOpenAIImageRef(ref){
-  const link=typeof ref==='string'?ref:ref?.download_link;
-  const mime=typeof ref==='object'&&ref?.mime_type?String(ref.mime_type).toLowerCase():'';
-  if(!link)throw new Error('Invalid OpenAI file reference: missing download_link.');
-  if(mime&&!mime.startsWith('image/'))throw new Error('Only image file references are supported for image publishing.');
-  return downloadRemoteFile(link,MAX_IMAGE_BYTES,'image');
-}
-export async function publishImagesFromFileRefs({text,openaiFileIdRefs,title}){
-  const refs=Array.isArray(openaiFileIdRefs)?openaiFileIdRefs:[];
-  if(!text?.trim())throw new Error('text must not be empty.');
-  if(refs.length<1||refs.length>4)throw new Error('Image publishing requires 1 to 4 OpenAI file references.');
-  const downloads=[];
-  try{
-    for(const ref of refs)downloads.push(await downloadOpenAIImageRef(ref));
-    return await publishImages({text,images:downloads.map(d=>d.file),title});
-  }finally{for(const d of downloads){try{fs.rmSync(d.dir,{recursive:true,force:true})}catch{}}}
-}
 
 async function downloadOpenAIImageRef(ref){
   const link=typeof ref==='string'?ref:ref?.download_link;
